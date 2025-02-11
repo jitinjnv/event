@@ -1,4 +1,3 @@
-// frontend/src/contexts/SocketContext.jsx
 import { createContext, useContext, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
@@ -10,40 +9,32 @@ export const SocketProvider = ({ children }) => {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (user) {
-      // Initialize socket connection
-      const newSocket = io(import.meta.env.VITE_API_URL, {
-        auth: {
-          token: localStorage.getItem('token')
-        }
-      });
-
-      // Socket event handlers
-      newSocket.on('connect', () => {
-        console.log('Socket connected');
-      });
-
-      newSocket.on('connect_error', (error) => {
-        console.error('Socket connection error:', error);
-      });
-
-      newSocket.on('disconnect', () => {
-        console.log('Socket disconnected');
-      });
-
-      setSocket(newSocket);
-
-      // Cleanup on unmount
-      return () => {
-        newSocket.close();
-      };
-    } else {
-      // Close socket if user logs out
+    if (!user) {
       if (socket) {
-        socket.close();
+        socket.disconnect();
         setSocket(null);
       }
+      return;
     }
+
+    // Initialize socket connection
+    const newSocket = io(import.meta.env.VITE_API_URL, {
+      auth: { token: localStorage.getItem('token') },
+      reconnectionAttempts: 5,
+      reconnectionDelay: 3000
+    });
+
+    newSocket.on('connect', () => console.log('✅ Socket connected'));
+    newSocket.on('disconnect', () => console.log('❌ Socket disconnected'));
+    newSocket.on('connect_error', (error) => console.error('⚠️ Socket connection error:', error));
+
+    setSocket(newSocket);
+
+    // Cleanup on unmount or user logout
+    return () => {
+      newSocket.disconnect();
+      setSocket(null);
+    };
   }, [user]);
 
   return (
@@ -53,7 +44,4 @@ export const SocketProvider = ({ children }) => {
   );
 };
 
-export const useSocket = () => {
-  const socket = useContext(SocketContext);
-  return socket;
-};
+export const useSocket = () => useContext(SocketContext);

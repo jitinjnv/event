@@ -23,7 +23,7 @@ const CreateEvent = () => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value.trim(),
     }));
   };
 
@@ -33,30 +33,47 @@ const CreateEvent = () => {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('upload_preset', 'event_images'); // Set this in your Cloudinary dashboard
+    formData.append('upload_preset', 'event_images');
 
     try {
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`,
-        {
-          method: 'POST',
-          body: formData
-        }
-      );
-      const data = await response.json();
-      setFormData(prev => ({
-        ...prev,
-        imageUrl: data.secure_url
-      }));
-    } catch (err) {
-      setError('Failed to upload image');
-    }
-  };
+        const response = await fetch(
+            `https://api.cloudinary.com/v1_1/${import.meta.env.VITE_CLOUDINARY_CLOUD_NAME}/image/upload`,
+            {
+                method: 'POST',
+                body: formData
+            }
+        );
 
-  const handleSubmit = async (e) => {
+        const data = await response.json();
+        console.log("Cloudinary response:", data); // ✅ Log Cloudinary response
+
+        if (!response.ok) {
+            throw new Error(data.error?.message || "Image upload failed");
+        }
+        setFormData((prev) => {
+            console.log("Updating form data with image URL:", prev, data.secure_url);
+            return {
+                ...prev,
+                imageUrl: data.secure_url
+            };
+        });
+        
+
+          
+    } catch (err) {
+        console.error("Upload failed:", err);
+        setError(err.message);
+    }
+};
+
+
+
+const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    console.log("Final form data before sending:", formData); // ✅ Log the form data before sending
 
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/events`, {
@@ -79,7 +96,8 @@ const CreateEvent = () => {
     } finally {
       setLoading(false);
     }
-  };
+};
+
 
   return (
     <div className="max-w-2xl mx-auto p-6">
@@ -178,14 +196,24 @@ const CreateEvent = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700">Event Image</label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="mt-1 block w-full"
-          />
-        </div>
+  <label className="block text-sm font-medium text-gray-700">Event Image</label>
+  <input
+    type="file"
+    accept="image/*"
+    onChange={handleImageUpload}
+    className="mt-1 block w-full"
+  />
+
+  {/* ✅ Show preview if image is uploaded */}
+  {formData.imageUrl && (
+    <img
+      src={formData.imageUrl}
+      alt="Uploaded Preview"
+      className="mt-2 w-48 h-auto rounded-md shadow-md"
+    />
+  )}
+</div>
+
 
         {error && (
           <div className="text-red-500 text-sm">

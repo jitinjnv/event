@@ -1,4 +1,3 @@
-// frontend/src/components/EventCard.jsx
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
@@ -14,7 +13,11 @@ const EventCard = ({ event, isOrganizer, onUpdate, onDelete }) => {
 
   const handleAttend = async () => {
     if (!user || loading) return;
-    
+
+    if (isAttending && !window.confirm('Are you sure you want to cancel your attendance?')) {
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -23,9 +26,7 @@ const EventCard = ({ event, isOrganizer, onUpdate, onDelete }) => {
         `${import.meta.env.VITE_API_URL}/events/${event._id}/attend`,
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         }
       );
 
@@ -56,9 +57,7 @@ const EventCard = ({ event, isOrganizer, onUpdate, onDelete }) => {
         `${import.meta.env.VITE_API_URL}/events/${event._id}`,
         {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         }
       );
 
@@ -67,16 +66,17 @@ const EventCard = ({ event, isOrganizer, onUpdate, onDelete }) => {
       onDelete(event._id);
     } catch (err) {
       setError('Failed to delete event');
+    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden">
+    <div className="bg-white rounded-lg shadow-md overflow-hidden transition-transform transform hover:scale-105 duration-200">
       {/* Event Image */}
       <div className="relative h-48 w-full">
         <img
-          src={event.imageUrl || '/api/placeholder/400/200'}
+          src={event.imageUrl || '/placeholder.jpg'}
           alt={event.name}
           className="w-full h-full object-cover"
         />
@@ -97,7 +97,6 @@ const EventCard = ({ event, isOrganizer, onUpdate, onDelete }) => {
       {/* Event Content */}
       <div className="p-6">
         <h3 className="text-xl font-semibold text-gray-900 mb-2">{event.name}</h3>
-        
         <p className="text-gray-600 mb-4 line-clamp-2">{event.description}</p>
 
         <div className="space-y-3">
@@ -106,7 +105,7 @@ const EventCard = ({ event, isOrganizer, onUpdate, onDelete }) => {
             <CalendarIcon className="h-5 w-5 mr-2" />
             <span>{format(new Date(event.date), 'MMMM d, yyyy')}</span>
           </div>
-          
+
           <div className="flex items-center text-gray-600">
             <ClockIcon className="h-5 w-5 mr-2" />
             <span>{event.time}</span>
@@ -128,9 +127,7 @@ const EventCard = ({ event, isOrganizer, onUpdate, onDelete }) => {
         </div>
 
         {error && (
-          <div className="mt-4 text-red-500 text-sm">
-            {error}
-          </div>
+          <div className="mt-4 text-red-500 text-sm">{error}</div>
         )}
 
         {/* Action Buttons */}
@@ -139,18 +136,25 @@ const EventCard = ({ event, isOrganizer, onUpdate, onDelete }) => {
             <button
               onClick={handleAttend}
               disabled={loading || (isFullyBooked && !isAttending)}
-              className={`
-                flex-1 px-4 py-2 rounded-md text-sm font-medium
+              className={`flex-1 px-4 py-2 rounded-md text-sm font-medium
                 ${isAttending 
-                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                  ? 'bg-red-100 text-red-700 hover:bg-red-200' 
                   : isFullyBooked
-                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed' 
                     : 'bg-indigo-600 text-white hover:bg-indigo-700'}
-                disabled:opacity-50 disabled:cursor-not-allowed
-                transition-colors duration-200
-              `}
+                disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200`}
             >
-              {loading ? 'Processing...' : isAttending ? 'Cancel Attendance' : isFullyBooked ? 'Fully Booked' : 'Attend Event'}
+              {loading ? (
+                <span className="flex justify-center items-center">
+                  <svg className="animate-spin h-4 w-4 mr-1" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                  </svg>
+                  Processing...
+                </span>
+              ) : (
+                isAttending ? 'Cancel Attendance' : isFullyBooked ? 'Fully Booked' : 'Attend Event'
+              )}
             </button>
           )}
 
@@ -160,7 +164,17 @@ const EventCard = ({ event, isOrganizer, onUpdate, onDelete }) => {
               disabled={loading}
               className="flex-1 px-4 py-2 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
             >
-              {loading ? 'Deleting...' : 'Delete Event'}
+              {loading ? (
+                <span className="flex justify-center items-center">
+                  <svg className="animate-spin h-4 w-4 mr-1" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                  </svg>
+                  Deleting...
+                </span>
+              ) : (
+                'Delete Event'
+              )}
             </button>
           )}
         </div>

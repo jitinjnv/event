@@ -1,17 +1,17 @@
-
 import { createContext, useContext, useState, useEffect } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isValidating, setIsValidating] = useState(false);
 
   useEffect(() => {
-    // Check for stored token on mount
     const token = localStorage.getItem('token');
-    if (token) {
-      // Validate token with backend
+    if (token && !isValidating) {
+      setIsValidating(true);
       validateToken(token);
     } else {
       setLoading(false);
@@ -20,64 +20,85 @@ export const AuthProvider = ({ children }) => {
 
   const validateToken = async (token) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/validate`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await fetch(`${API_URL}/auth/validate`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
+
+      console.log("Token validation response status:", response.status);
+      
       if (response.ok) {
         const userData = await response.json();
         setUser(userData);
       } else {
-        localStorage.removeItem('token');
+        handleInvalidToken();
       }
     } catch (error) {
-      console.error('Token validation error:', error);
-      localStorage.removeItem('token');
+      console.error('⚠️ Token validation error:', error);
+      handleInvalidToken();
+    } finally {
+      setLoading(false);
+      setIsValidating(false);
     }
-    setLoading(false);
+  };
+
+  const handleInvalidToken = () => {
+    localStorage.removeItem('token');
+    setUser(null);
   };
 
   const login = async (email, password) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
+      console.log(`Logging in with: ${API_URL}/auth/login`);
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 
-      if (!response.ok) throw new Error('Login failed');
+      console.log("Login response status:", response.status);
 
-      const data = await response.json();
-      localStorage.setItem('token', data.token);
-      setUser(data.user);
+      const textResponse = await response.text();
+      console.log("Raw response:", textResponse);
+
+      const jsonResponse = JSON.parse(textResponse);
+
+      if (!response.ok) {
+        throw new Error(jsonResponse.message || 'Login failed');
+      }
+
+      localStorage.setItem('token', jsonResponse.token);
+      setUser(jsonResponse.user);
       return true;
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('⚠️ Login error:', error.message);
       throw error;
     }
   };
 
   const register = async (userData) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/register`, {
+      console.log(`Registering user at: ${API_URL}/auth/register`);
+      const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
       });
 
-      if (!response.ok) throw new Error('Registration failed');
+      console.log("Registration response status:", response.status);
 
-      const data = await response.json();
-      localStorage.setItem('token', data.token);
-      setUser(data.user);
+      const textResponse = await response.text();
+      console.log("Raw response:", textResponse);
+
+      if (!response.ok) {
+        throw new Error(textResponse);
+      }
+
+      const jsonResponse = JSON.parse(textResponse);
+      localStorage.setItem('token', jsonResponse.token);
+      setUser(jsonResponse.user);
       return true;
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error('⚠️ Registration error:', error.message);
       throw error;
     }
   };
@@ -92,17 +113,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
-        loading, 
-        login, 
-        logout, 
-        register, 
-        guestLogin,
-        isAuthenticated: !!user && user.id !== 'guest'
-      }}
-    >
+    <AuthContext.Provider value={{ 
+      user, 
+      loading, 
+      login, 
+      logout, 
+      register, 
+      guestLogin,
+      isAuthenticated: !!user && user.id !== 'guest'
+    }}>
       {!loading && children}
     </AuthContext.Provider>
   );

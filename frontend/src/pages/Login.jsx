@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {
@@ -12,18 +12,24 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     try {
       await login(email, password);
       navigate('/dashboard');
     } catch (err) {
+      console.error("Login Error:", err); // Debugging
       setError('Invalid email or password');
     }
   };
 
-  const handleGuestLogin = () => {
-    guestLogin();
-    navigate('/dashboard');
+  const handleGuestLogin = async () => {
+    try {
+      await guestLogin();
+      navigate('/dashboard');
+    } catch (err) {
+      console.error("Guest Login Error:", err);
+      setError('Guest login failed.');
+    }
   };
 
   return (
@@ -77,6 +83,10 @@ const Login = () => {
             >
               Sign in
             </button>
+            <p className="text-center text-gray-600 mt-4">
+              Don't have an account? 
+              <Link to="/register" className="text-indigo-600 hover:underline"> Register here</Link>
+            </p>
             <button
               type="button"
               onClick={handleGuestLogin}

@@ -1,149 +1,150 @@
-const express = require('express');
+import express from "express";
+import Event from "../models/Event.js";
+import auth from "../middleware/auth.js";
+
 const router = express.Router();
-const Event = require('../models/Event');
-const auth = require('../middleware/auth');
 
 // Get all events
-router.get('/', auth, async (req, res) => {
+router.get("/", auth, async (req, res) => {
   try {
     const { category, date, search } = req.query;
     let query = {};
 
-    if (category && category !== 'all') {
+    if (category && category !== "all") {
       query.category = category;
     }
 
-    if (date === 'upcoming') {
+    if (date === "upcoming") {
       query.date = { $gte: new Date() };
-    } else if (date === 'past') {
+    } else if (date === "past") {
       query.date = { $lt: new Date() };
     }
 
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { name: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
       ];
     }
 
     const events = await Event.find(query)
-      .populate('organizer', 'name')
+      .populate("organizer", "name")
       .sort({ date: 1 });
 
     res.json(events);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // Create event
-router.post('/', auth, async (req, res) => {
-  try {
-    const event = new Event({
-      ...req.body,
-      organizer: req.user.userId
-    });
+router.post("/", auth, async (req, res) => {
+    try {
+      const io = req.app.get("io"); // ✅ Ensure `io` is available
+      if (!io) {
+        console.error("Socket.io instance is missing!");
+        return res.status(500).json({ message: "Socket.io not initialized" });
+      }
+  
+      const event = new Event({
+        ...req.body,
+        organizer: req.user.userId
+      });
+  
+      await event.save();
+      await event.populate("organizer", "name");
+  
+      io.emit("eventCreated", event); // ✅ Emit event properly
+  
+      res.status(201).json(event);
+    } catch (error) {
+      console.error("Create Event Error:", error);
+      res.status(500).json({ message: "Server error", error: error.message });
+    }
+  });
+  
+ 
 
-    await event.save();
-    
-    // Populate organizer details
-    await event.populate('organizer', 'name');
-    
-    // Emit socket event
-    req.app.get('io').emit('eventCreated', event);
-    
-    res.status(201).json(event);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
 
 // Update event
-router.put('/:id', auth, async (req, res) => {
+router.put("/:id", auth, async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     
     if (!event) {
-      return res.status(404).json({ message: 'Event not found' });
+      return res.status(404).json({ message: "Event not found" });
     }
 
     if (event.organizer.toString() !== req.user.userId) {
-      return res.status(403).json({ message: 'Not authorized' });
+      return res.status(403).json({ message: "Not authorized" });
     }
 
     Object.assign(event, req.body);
     await event.save();
-    
-    // Populate organizer details
-    await event.populate('organizer', 'name');
-    
-    // Emit socket event
-    req.app.get('io').emit('eventUpdated', event);
+    await event.populate("organizer", "name");
+
+    req.app.get("io").emit("eventUpdated", event);
     
     res.json(event);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // Delete event
-router.delete('/:id', auth, async (req, res) => {
+router.delete("/:id", auth, async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     
     if (!event) {
-      return res.status(404).json({ message: 'Event not found' });
+      return res.status(404).json({ message: "Event not found" });
     }
 
     if (event.organizer.toString() !== req.user.userId) {
-      return res.status(403).json({ message: 'Not authorized' });
+      return res.status(403).json({ message: "Not authorized" });
     }
 
-    await event.remove();
+    await event.deleteOne();
+
+    req.app.get("io").emit("eventDeleted", req.params.id);
     
-    // Emit socket event
-    req.app.get('io').emit('eventDeleted', req.params.id);
-    
-    res.json({ message: 'Event removed' });
+    res.json({ message: "Event removed" });
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
 // Attend event
-router.post('/:id/attend', auth, async (req, res) => {
+router.post("/:id/attend", auth, async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     
     if (!event) {
-      return res.status(404).json({ message: 'Event not found' });
+      return res.status(404).json({ message: "Event not found" });
     }
 
     const attendeeIndex = event.attendees.indexOf(req.user.userId);
     
     if (attendeeIndex === -1) {
-      // Add attendee
       if (event.attendees.length >= event.capacity) {
-        return res.status(400).json({ message: 'Event is at capacity' });
+        return res.status(400).json({ message: "Event is at capacity" });
       }
       event.attendees.push(req.user.userId);
     } else {
-      // Remove attendee
       event.attendees.splice(attendeeIndex, 1);
     }
 
     await event.save();
-    
-    // Emit socket event
-    req.app.get('io').emit('attendeeUpdated', {
+
+    req.app.get("io").emit("attendeeUpdated", {
       eventId: event._id,
-      attendeeCount: event.attendees.length
+      attendeeCount: event.attendees.length,
     });
-    
+
     res.json(event);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-module.exports = router;
+export default router;

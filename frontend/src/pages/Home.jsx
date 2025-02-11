@@ -1,10 +1,9 @@
-// frontend/src/pages/Home.jsx
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Home = () => {
-  const { user } = useAuth();
+  const { currentUser } = useAuth(); // Ensure correct variable name
   const [featuredEvents, setFeaturedEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -14,17 +13,29 @@ const Home = () => {
 
   const fetchFeaturedEvents = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/events?featured=true`);
-      if (response.ok) {
-        const data = await response.json();
-        setFeaturedEvents(data.slice(0, 3)); // Get top 3 featured events
-      }
+      const token = localStorage.getItem("token"); // Get the token from storage
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/events?featured=true`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // Attach token
+        },
+      });
+  
+      if (!res.ok) throw new Error(`API Error: ${res.status} - ${res.statusText}`);
+  
+      const data = await res.json();
+      setFeaturedEvents(data); // ✅ Use the correct setter function
+      setLoading(false); // ✅ Stop loading after fetching
     } catch (error) {
-      console.error('Error fetching featured events:', error);
-    } finally {
-      setLoading(false);
+      console.error("Error fetching featured events:", error);
+      setLoading(false); // ✅ Stop loading even if there's an error
     }
   };
+  
+  
+  
+
 
   return (
     <div className="bg-white">
@@ -33,7 +44,7 @@ const Home = () => {
         <div className="absolute inset-0">
           <img
             className="w-full h-full object-cover"
-            src="/api/placeholder/1920/600"
+            src="/assets/hero-placeholder.jpg" // Use a local placeholder image
             alt="Event background"
           />
           <div className="absolute inset-0 bg-indigo-900 opacity-75"></div>
@@ -46,7 +57,7 @@ const Home = () => {
             Create, manage, and discover amazing events. Connect with people who share your interests and make memorable experiences together.
           </p>
           <div className="mt-10 flex space-x-4">
-            {user ? (
+            {currentUser ? (
               <Link
                 to="/dashboard"
                 className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50"
@@ -98,9 +109,9 @@ const Home = () => {
                     {event.description}
                   </p>
                   <div className="mt-4">
-                    <span className="text-sm font-medium text-indigo-600">
+                    <Link to={`/event/${event._id}`} className="text-sm font-medium text-indigo-600 hover:underline">
                       Learn more →
-                    </span>
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -110,10 +121,10 @@ const Home = () => {
 
         <div className="mt-12 text-center">
           <Link
-            to={user ? "/dashboard" : "/register"}
+            to={currentUser ? "/dashboard" : "/register"}
             className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
           >
-            {user ? 'View All Events' : 'Join Now to Explore More'}
+            {currentUser ? 'View All Events' : 'Join Now to Explore More'}
           </Link>
         </div>
       </div>
@@ -128,26 +139,16 @@ const Home = () => {
           </div>
 
           <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="relative rounded-lg bg-white p-6">
-              <h3 className="text-lg font-medium text-gray-900">Easy to Use</h3>
-              <p className="mt-2 text-gray-500">
-                Create and manage events with our intuitive interface. No technical experience required.
-              </p>
-            </div>
-
-            <div className="relative rounded-lg bg-white p-6">
-              <h3 className="text-lg font-medium text-gray-900">Real-time Updates</h3>
-              <p className="mt-2 text-gray-500">
-                Get instant notifications about event changes and attendee updates.
-              </p>
-            </div>
-
-            <div className="relative rounded-lg bg-white p-6">
-              <h3 className="text-lg font-medium text-gray-900">Secure & Reliable</h3>
-              <p className="mt-2 text-gray-500">
-                Your data is protected with industry-standard security measures.
-              </p>
-            </div>
+            {[
+              { title: "Easy to Use", text: "Create and manage events with our intuitive interface. No technical experience required." },
+              { title: "Real-time Updates", text: "Get instant notifications about event changes and attendee updates." },
+              { title: "Secure & Reliable", text: "Your data is protected with industry-standard security measures." },
+            ].map((feature, index) => (
+              <div key={index} className="relative rounded-lg bg-white p-6">
+                <h3 className="text-lg font-medium text-gray-900">{feature.title}</h3>
+                <p className="mt-2 text-gray-500">{feature.text}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
